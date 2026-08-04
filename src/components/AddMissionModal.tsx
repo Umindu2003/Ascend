@@ -1,77 +1,110 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Modal, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Modal,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
-interface AddMissionModalProps {
-  visible: boolean;
-  onClose: () => void;
-  onAdd: (title: string, xp: number) => void;
-}
+const STAT_CATEGORIES = [
+  { id: 'INT', label: '🧠 INT' },
+  { id: 'STR', label: '💪 STR' },
+  { id: 'CHA', label: '🗣️ CHA' },
+  { id: 'END', label: '⚡ END' },
+];
 
-export default function AddMissionModal({ visible, onClose, onAdd }: AddMissionModalProps) {
+export default function AddMissionModal({ visible, onClose, onAdd }: any) {
   const [title, setTitle] = useState('');
-  const [xp, setXp] = useState(20); // Default XP
+  const [xp, setXp] = useState('50');
+  const [selectedStat, setSelectedStat] = useState('INT');
 
   const handleAdd = () => {
-    if (title.trim() === '') return;
+    if (!title.trim()) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     
-    // A heavier buzz for creating something new! 💥
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // We now pass the selectedStat back to HomeScreen!
+    onAdd(title, parseInt(xp) || 50, selectedStat);
     
-    onAdd(title, xp);
-    setTitle(''); 
-    setXp(20);
+    setTitle('');
+    setXp('50');
+    setSelectedStat('INT');
     onClose();
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent={true}>
-      <KeyboardAvoidingView 
+    <Modal visible={visible} transparent animationType="slide">
+      <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.overlay}
+        style={styles.modalOverlay}
       >
-        <View style={styles.sheet}>
-          
-          {/* Header */}
+        <View style={styles.modalContent}>
           <View style={styles.header}>
             <Text style={styles.title}>New Mission 🎯</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color="#A0A0A0" />
+            <TouchableOpacity 
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                onClose();
+              }}
+            >
+              <Ionicons name="close-circle" size={28} color="#EBEBEB" />
             </TouchableOpacity>
           </View>
 
-          {/* Input Field */}
           <TextInput
             style={styles.input}
-            placeholder="What's your quest?"
+            placeholder="What's the mission?"
             placeholderTextColor="#A0A0A0"
             value={title}
             onChangeText={setTitle}
             autoFocus
           />
 
-          {/* XP Selector */}
-          <Text style={styles.subtitle}>Difficulty / XP Reward</Text>
-          <View style={styles.xpRow}>
-            {[10, 20, 50].map((val) => (
-              <TouchableOpacity 
-                key={val} 
-                style={[styles.xpPill, xp === val && styles.xpPillActive]}
-                onPress={() => setXp(val)}
+          <View style={styles.row}>
+            <Text style={styles.label}>XP Reward:</Text>
+            <TextInput
+              style={styles.xpInput}
+              keyboardType="number-pad"
+              value={xp}
+              onChangeText={setXp}
+            />
+          </View>
+
+          {/* 🧬 THE SKILL TREE SELECTOR */}
+          <Text style={styles.label}>Stat Category:</Text>
+          <View style={styles.statContainer}>
+            {STAT_CATEGORIES.map((stat) => (
+              <TouchableOpacity
+                key={stat.id}
+                style={[
+                  styles.statButton,
+                  selectedStat === stat.id && styles.statButtonActive
+                ]}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setSelectedStat(stat.id);
+                }}
               >
-                <Text style={[styles.xpText, xp === val && styles.xpTextActive]}>
-                  +{val} XP
+                <Text 
+                  style={[
+                    styles.statText,
+                    selectedStat === stat.id && styles.statTextActive
+                  ]}
+                >
+                  {stat.label}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
 
-          {/* Add Button */}
-          <TouchableOpacity style={styles.addButton} onPress={handleAdd} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.addButton} onPress={handleAdd}>
             <Text style={styles.addButtonText}>Add Mission</Text>
           </TouchableOpacity>
-
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -79,81 +112,101 @@ export default function AddMissionModal({ visible, onClose, onAdd }: AddMissionM
 }
 
 const styles = StyleSheet.create({
-  overlay: {
+  modalOverlay: {
     flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0, 0, 0, 0.4)', // Dark overlay for focus
   },
-  sheet: {
+  modalContent: {
     backgroundColor: '#FFFFFF',
-    padding: 24,
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
+    padding: 24,
+    paddingBottom: 40,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.1,
-    shadowRadius: 12,
+    shadowRadius: 20,
     elevation: 10,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
   },
   title: {
     fontSize: 22,
-    fontWeight: '800',
+    fontWeight: '900',
     color: '#111',
-  },
-  closeButton: {
-    padding: 4,
   },
   input: {
     backgroundColor: '#F5F5F5',
-    padding: 16,
     borderRadius: 16,
+    padding: 16,
     fontSize: 16,
+    fontWeight: '600',
     color: '#111',
-    fontWeight: '500',
-    marginBottom: 24,
+    marginBottom: 20,
   },
-  subtitle: {
-    fontSize: 14,
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  label: {
+    fontSize: 16,
     fontWeight: '700',
-    color: '#888',
+    color: '#111',
     marginBottom: 12,
   },
-  xpRow: {
+  xpInput: {
+    backgroundColor: '#F5F5F5',
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#34C759',
+    width: 80,
+    textAlign: 'center',
+  },
+  statContainer: {
     flexDirection: 'row',
-    gap: 12,
+    justifyContent: 'space-between',
     marginBottom: 32,
   },
-  xpPill: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
+  statButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
     backgroundColor: '#F5F5F5',
     borderWidth: 2,
     borderColor: 'transparent',
   },
-  xpPillActive: {
-    backgroundColor: '#F0F8FF',
-    borderColor: '#007AFF',
+  statButtonActive: {
+    backgroundColor: '#FFF',
+    borderColor: '#111',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  xpText: {
+  statText: {
+    fontSize: 14,
+    fontWeight: '600',
     color: '#888',
-    fontWeight: '700',
   },
-  xpTextActive: {
-    color: '#007AFF',
+  statTextActive: {
+    color: '#111',
+    fontWeight: '800',
   },
   addButton: {
-    backgroundColor: '#111', // Gen Z high-contrast black
-    paddingVertical: 16,
+    backgroundColor: '#111',
     borderRadius: 16,
+    padding: 18,
     alignItems: 'center',
-    marginBottom: 10,
   },
   addButtonText: {
     color: '#FFF',

@@ -21,17 +21,26 @@ import { differenceInCalendarDays, isSameDay } from 'date-fns';
 export default function HomeScreen() {
   const navigation = useNavigation<any>();
 
-  // 🎯 Missions State
+  // ⏳ Loading State so they don't see the math happen
+  const [isMathLoading, setIsMathLoading] = useState(true);
+
+  // 🎯 Missions State (Now tracking the Stat Category 🧬)
   const [missions, setMissions] = useState<any[]>([]);
   
-  // 📊 Player Stats State (Now tracking last combo! 🔥)
+  // 📊 Player Stats State (Now with Economy 💰)
   const [playerStats, setPlayerStats] = useState({
     level: 1,
     xp: 0,
     combo: 0,
     health: 100,
     id: '',
-    lastComboDate: null as string | null, // 👈 ADD THIS
+    lastComboDate: null as string | null,
+    int_xp: 0,
+    str_xp: 0,
+    cha_xp: 0,
+    end_xp: 0,
+    coins: 0, // 👈 New!
+    gems: 0,  // 👈 New!
   });
   
   const [isModalVisible, setModalVisible] = useState(false);
@@ -40,10 +49,10 @@ export default function HomeScreen() {
   const [damageTaken, setDamageTaken] = useState(0);
   const [showDamageModal, setShowDamageModal] = useState(false);
 
-  // ⏳ Loading State so they don't see the math happen
-  const [isMathLoading, setIsMathLoading] = useState(true);
+  // 🏆 Achievement Modal States
+  const [unlockedBadge, setUnlockedBadge] = useState({ id: '', title: '', icon: '', desc: '' });
+  const [showAchievementModal, setShowAchievementModal] = useState(false);
 
-  // 🔄 Load everything when screen opens
   useEffect(() => {
     loadPlayerData();
   }, []);
@@ -67,26 +76,22 @@ export default function HomeScreen() {
         const today = new Date();
         const lastActiveDate = statsData.last_active_date ? new Date(statsData.last_active_date) : today;
         
-        // 🪄 The Magic Calculation
         const daysMissed = differenceInCalendarDays(today, lastActiveDate);
         
-        let newHealth = statsData.health ?? 100; // Fallback just in case
+        let newHealth = statsData.health ?? 100; 
         let newCombo = statsData.combo ?? 0;
 
-        // 💀 The Penalty Check
         if (daysMissed > 1) {
-          const damage = (daysMissed - 1) * 20; // 20 ❤️ lost per day missed
+          const damage = (daysMissed - 1) * 20; 
           newHealth = Math.max(0, newHealth - damage); 
-          newCombo = 0; // Combo goes poof 💨
+          newCombo = 0; 
           
           setDamageTaken(damage);
           setShowDamageModal(true);
           
-          // Heavy vibration for the damage! 📳
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         }
 
-        // ☁️ Update the Database if it's a new day
         if (daysMissed > 0 || !statsData.last_active_date) {
           await supabase
             .from('users')
@@ -98,14 +103,20 @@ export default function HomeScreen() {
             .eq('id', user.id);
         }
 
-        // ⚡ Set the local state (now includes lastComboDate)
+        // ⚡ Set the local state with all stats + economy
         setPlayerStats({
           level: statsData.level,
           xp: statsData.xp,
           combo: newCombo,
           health: newHealth,
           id: user.id,
-          lastComboDate: statsData.last_combo_date ?? null, // 👈 Include from DB
+          lastComboDate: statsData.last_combo_date,
+          int_xp: statsData.int_xp || 0,
+          str_xp: statsData.str_xp || 0,
+          cha_xp: statsData.cha_xp || 0,
+          end_xp: statsData.end_xp || 0,
+          coins: statsData.coins || 0,  // 👈 Load coins
+          gems: statsData.gems || 0,    // 👈 Load gems
         });
       }
 
@@ -123,22 +134,80 @@ export default function HomeScreen() {
             title: m.title,
             xp: m.xp_reward,
             isCompleted: m.is_completed,
+            statCategory: m.stat_category || 'INT',
           }))
         );
       }
     } catch (error) {
       console.error("Error loading data:", error);
     } finally {
-      // 🎭 Turn off the local loading state instead of the splash screen!
       setIsMathLoading(false);
     }
   };
 
-  // ⚡ Toggle Mission with Level-Up & Combo Logic
+  // 🕵️‍♂️ THE SECRET EASTER EGG CHECKER (With Bug Radars 📡)
+  const checkAchievements = async (userId: string, currentHealth: number, statCategory: string) => {
+    console.log("🕵️‍♂️ Secret Check Started! Stat:", statCategory);
+    
+    const today = new Date();
+    const hour = today.getHours();
+    const newUnlocks = [];
+
+    if (hour < 9) newUnlocks.push({ id: 'silver_arrow', title: 'The Silver Arrow 🏎️', icon: '🏁', desc: 'Flawless execution. Cleared a mission before 9 AM!' });
+    if (hour >= 1 && hour < 4) newUnlocks.push({ id: 'night_owl', title: 'The Night Owl 🧛‍♂️', icon: '🌙', desc: 'Grinding while the world sleeps!' });
+    
+    if (statCategory === 'INT') {
+      console.log("💻 INT Mission detected! Prepping Startup Hustle badge...");
+      newUnlocks.push({ id: 'startup_hustle', title: 'The Startup Hustle 💻', icon: '🚀', desc: 'Big brain energy. Keep building!' });
+    }
+
+    if (currentHealth < 20) newUnlocks.push({ id: 'clutch_comeback', title: 'Clutch Comeback 💀', icon: '❤️‍🔥', desc: 'Never back down. Grinding on low health!' });
+
+    for (const badge of newUnlocks) {
+      console.log(`🔍 Checking Supabase for badge: ${badge.id}`);
+      
+      const { data, error } = await supabase
+        .from('achievements')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('achievement_id', badge.id);
+
+      if (error) {
+        console.error("🚨 SUPABASE SELECT ERROR:", error);
+      }
+
+      console.log(`📊 DB Data returned:`, data);
+
+      if (!error && data && data.length === 0) {
+        console.log(`🎉 UNLOCKING BADGE NOW: ${badge.id}`);
+        
+        const { error: insertError } = await supabase.from('achievements').insert([
+          { user_id: userId, achievement_id: badge.id }
+        ]);
+
+        if (insertError) {
+          console.error("🚨 SUPABASE INSERT ERROR:", insertError);
+        } else {
+          console.log("✅ Successfully saved to Database! Triggering UI...");
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy), 400);
+
+          setUnlockedBadge(badge);
+          setShowAchievementModal(true);
+          break; 
+        }
+      } else if (data && data.length > 0) {
+        console.log(`⚠️ Badge ${badge.id} is already unlocked for this user.`);
+      }
+    }
+  };
+
+  // ⚡ Toggle Mission with Level-Up, Combo, SKILL TREE & ECONOMY Logic 🧬💰
   const toggleMission = async (
     missionId: number,
     currentStatus: boolean,
-    missionXp: number
+    missionXp: number,
+    missionStat: string
   ) => {
     const isCompleting = !currentStatus;
 
@@ -150,52 +219,83 @@ export default function HomeScreen() {
     );
 
     // 2. Calculate new XP and Levels 🧮
-    let newXp = isCompleting
-      ? playerStats.xp + missionXp
-      : playerStats.xp - missionXp;
+    let newXp = isCompleting ? playerStats.xp + missionXp : playerStats.xp - missionXp;
     let newLevel = playerStats.level;
 
-    // 🏆 LEVEL UP LOGIC!
     if (newXp >= 1000) {
       newLevel += 1;
-      newXp -= 1000;
+      newXp -= 1000; 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert('LEVEL UP! 🎉⚡', `You are now Level ${newLevel}! Keep grinding, bro!`);
     } else if (newXp < 0 && newLevel > 1) {
       newLevel -= 1;
       newXp += 1000;
     } else if (newXp < 0) {
-      newXp = 0;
+      newXp = 0; 
     }
 
-    // 🔥 COMBO BOOST LOGIC!
+    // 🔥 COMBO BOOST LOGIC
     let newCombo = playerStats.combo;
     let newLastComboDate = playerStats.lastComboDate;
     const today = new Date();
 
     if (isCompleting) {
-      // Check if they already got a combo today
       const alreadyGotComboToday = playerStats.lastComboDate 
         ? isSameDay(new Date(playerStats.lastComboDate), today)
         : false;
 
       if (!alreadyGotComboToday) {
         newCombo += 1;
-        newLastComboDate = today.toISOString(); // Lock it in for today!
+        newLastComboDate = today.toISOString(); 
         
-        // Massive Haptic & Alert for hitting the daily combo! 📳
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert('🔥 COMBO BOOST!', `You started your daily streak! ${newCombo} Days strong!`);
       }
     }
 
-    // Update local player stats
+    // 🧬 SKILL TREE LOGIC: Distribute the specific stat XP!
+    const dbStatKey = `${missionStat.toLowerCase()}_xp` as keyof typeof playerStats;
+    let currentStatXp = (playerStats[dbStatKey] as number) || 0;
+    
+    let newStatXp = isCompleting ? currentStatXp + missionXp : currentStatXp - missionXp;
+    if (newStatXp < 0) newStatXp = 0;
+
+    // 💰 ASCEND ECONOMY LOGIC
+    let newCoins = playerStats.coins;
+    let newGems = playerStats.gems;
+
+    if (isCompleting) {
+      // 1. Calculate guaranteed coins (Half of the XP reward)
+      const coinsEarned = Math.floor(missionXp / 2);
+      newCoins += coinsEarned;
+
+      // 2. The 10% Rare Gem Drop Chance! 💎
+      const foundGem = Math.random() < 0.10; 
+      if (foundGem) {
+        newGems += 1;
+        
+        // Delay the alert slightly so it pops up AFTER the mission clears
+        setTimeout(() => {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          Alert.alert('💎 RARE LOOT DROP!', 'You found a hidden Gem while grinding!');
+        }, 600);
+      }
+    } else {
+      // If they uncheck a mission, take the coins back!
+      const coinsEarned = Math.floor(missionXp / 2);
+      newCoins = Math.max(0, newCoins - coinsEarned);
+    }
+
+    // Update local player stats (including economy)
     setPlayerStats({ 
       ...playerStats, 
       xp: newXp, 
       level: newLevel,
-      combo: newCombo, // 👈 Updated combo
-      lastComboDate: newLastComboDate // 👈 Updated date
+      combo: newCombo,
+      lastComboDate: newLastComboDate,
+      [dbStatKey]: newStatXp,
+      coins: newCoins, // 👈 Update coins
+      gems: newGems,   // 👈 Update gems
     });
 
     // 3. Save to Supabase in the background ☁️
@@ -204,16 +304,23 @@ export default function HomeScreen() {
       .update({ is_completed: isCompleting })
       .eq('id', missionId);
 
-    // Note: Make sure 'last_combo_date' is a column in your 'users' table in Supabase!
     await supabase
       .from('users')
       .update({ 
         xp: newXp, 
         level: newLevel,
         combo: newCombo,
-        last_combo_date: newLastComboDate
+        last_combo_date: newLastComboDate,
+        [dbStatKey]: newStatXp,
+        coins: newCoins, // 👈 Save Coins
+        gems: newGems,   // 👈 Save Gems
       })
       .eq('id', playerStats.id);
+
+    // 🕵️‍♂️ Secret achievement check (only when completing)
+    if (isCompleting) {
+      await checkAchievements(playerStats.id, playerStats.health, missionStat);
+    }
   };
 
   // 🗑️ Delete Mission Function
@@ -227,27 +334,15 @@ export default function HomeScreen() {
           text: "Delete", 
           style: "destructive", 
           onPress: async () => {
-            // 1. Remove it from the UI instantly ⚡
             setMissions(missions.filter(m => m.id !== missionId));
-            
-            // 2. Delete it from the cloud ☁️
-            const { error } = await supabase
-              .from('missions')
-              .delete()
-              .eq('id', missionId);
-              
-            if (error) {
-              console.error("Delete Error:", error);
-              Alert.alert("Error", "Could not delete mission from database.");
-              loadPlayerData(); // Reload if there's an error to keep UI in sync
-            }
+            const { error } = await supabase.from('missions').delete().eq('id', missionId);
+            if (error) loadPlayerData(); 
           }
         }
       ]
     );
   };
 
-  // ⏳ If we are calculating stats, just show a blank screen to hide the layout shift
   if (isMathLoading) {
     return <View style={styles.container} />;
   }
@@ -263,13 +358,11 @@ export default function HomeScreen() {
           <View style={styles.comboBadge}>
             <Text style={styles.comboText}>🔥 {playerStats.combo}</Text>
           </View>
-          {/* NEW HEALTH BADGE ❤️ */}
           <View style={styles.healthBadge}>
             <Text style={styles.healthText}>❤️ {playerStats.health}</Text>
           </View>
         </View>
 
-        {/* 👤 Profile Button */}
         <TouchableOpacity
           style={styles.profileButton}
           onPress={() => {
@@ -281,7 +374,7 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* 🟢 XP Progress Bar – dynamic width! */}
+      {/* 🟢 XP Progress Bar */}
       <View style={styles.xpContainer}>
         <Text style={styles.xpLabel}>XP</Text>
         <View style={styles.xpTrack}>
@@ -312,7 +405,7 @@ export default function HomeScreen() {
               xp={mission.xp}
               isCompleted={mission.isCompleted}
               onComplete={() =>
-                toggleMission(mission.id, mission.isCompleted, mission.xp)
+                toggleMission(mission.id, mission.isCompleted, mission.xp, mission.statCategory)
               }
               onDelete={() => deleteMission(mission.id, mission.title)} 
             />
@@ -344,7 +437,7 @@ export default function HomeScreen() {
       <AddMissionModal
         visible={isModalVisible}
         onClose={() => setModalVisible(false)}
-        onAdd={async (title, xp) => {
+        onAdd={async (title: string, xp: number, statCategory: string) => {
           const { data: { user } } = await supabase.auth.getUser();
           if (!user) return;
 
@@ -356,6 +449,7 @@ export default function HomeScreen() {
                 xp_reward: xp,
                 is_completed: false,
                 user_id: user.id,
+                stat_category: statCategory,
               },
             ])
             .select();
@@ -368,13 +462,14 @@ export default function HomeScreen() {
               title: data[0].title,
               xp: data[0].xp_reward,
               isCompleted: data[0].is_completed,
+              statCategory: data[0].stat_category,
             };
             setMissions([newMission, ...missions]);
           }
         }}
       />
 
-      {/* 🩸 THE DAMAGE MODAL (Glassmorphism vibes) */}
+      {/* 🩸 THE DAMAGE MODAL */}
       <Modal visible={showDamageModal} transparent={true} animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.damageCard}>
@@ -396,6 +491,28 @@ export default function HomeScreen() {
         </View>
       </Modal>
 
+      {/* 🏆 THE ACHIEVEMENT MODAL (Premium Glassmorphism) */}
+      <Modal visible={showAchievementModal} transparent={true} animationType="slide">
+        <View style={styles.achievementOverlay}>
+          <View style={styles.achievementCard}>
+            <Text style={styles.achievementIcon}>{unlockedBadge.icon}</Text>
+            <Text style={styles.achievementTitle}>Achievement Unlocked!</Text>
+            <Text style={styles.achievementName}>{unlockedBadge.title}</Text>
+            <Text style={styles.achievementDesc}>{unlockedBadge.desc}</Text>
+            
+            <Pressable 
+              style={styles.claimButton}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                setShowAchievementModal(false);
+              }}
+            >
+              <Text style={styles.claimButtonText}>Claim Reward 🏆</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -406,14 +523,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#FAFAFA',
     paddingHorizontal: 24,
   },
-
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: 20,
   },
-
   levelBadge: {
     backgroundColor: '#FFFFFF',
     paddingVertical: 10,
@@ -425,40 +540,33 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 2,
   },
-
   levelText: {
     fontWeight: '800',
     fontSize: 14,
     color: '#111',
   },
-
   comboBadge: {
     backgroundColor: '#FFF2E5',
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 20,
   },
-
   comboText: {
     fontWeight: '800',
     fontSize: 14,
     color: '#FF7F50',
   },
-
-  // NEW: Health Badge Styles ❤️
   healthBadge: {
     backgroundColor: '#FFE5E5',
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 20,
   },
-
   healthText: {
     fontWeight: '800',
     fontSize: 14,
     color: '#FF3B30',
   },
-
   profileButton: {
     backgroundColor: '#FFF',
     width: 40,
@@ -472,31 +580,26 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 2,
   },
-
   xpContainer: {
     marginTop: 32,
   },
-
   xpLabel: {
     fontWeight: '700',
     fontSize: 14,
     color: '#888',
     marginBottom: 8,
   },
-
   xpTrack: {
     height: 14,
     backgroundColor: '#EBEBEB',
     borderRadius: 12,
     overflow: 'hidden',
   },
-
   xpFill: {
     height: '100%',
     backgroundColor: '#34C759',
     borderRadius: 12,
   },
-
   xpNumbers: {
     textAlign: 'right',
     marginTop: 8,
@@ -504,30 +607,25 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 12,
   },
-
   missionBoard: {
     marginTop: 40,
     flex: 1,
   },
-
   title: {
     fontSize: 28,
     fontWeight: '900',
     color: '#111',
     marginBottom: 20,
   },
-
   emptyState: {
     marginTop: 40,
     alignItems: 'center',
   },
-
   emptyStateText: {
     color: '#A0A0A0',
     fontSize: 16,
     fontWeight: '600',
   },
-
   fab: {
     position: 'absolute',
     bottom: 30,
@@ -539,16 +637,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 5,
   },
-
-  // 🩸 MODAL STYLES
   modalOverlay: { 
     flex: 1, 
     backgroundColor: 'rgba(0,0,0,0.4)', 
@@ -582,5 +675,71 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 5,
   },
-  buttonText: { color: '#FFF', fontWeight: '800', fontSize: 16 }
+  buttonText: { color: '#FFF', fontWeight: '800', fontSize: 16 },
+
+  // 🏆 ACHIEVEMENT MODAL STYLES (Glassmorphism)
+  achievementOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  achievementCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    padding: 32,
+    borderRadius: 28,
+    alignItems: 'center',
+    width: '85%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 15 },
+    shadowOpacity: 0.15,
+    shadowRadius: 30,
+    elevation: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 1)',
+  },
+  achievementIcon: { 
+    fontSize: 70, 
+    marginBottom: 16 
+  },
+  achievementTitle: { 
+    fontSize: 14, 
+    fontWeight: '900', 
+    color: '#FF7F50', 
+    textTransform: 'uppercase', 
+    letterSpacing: 1.5,
+    marginBottom: 8 
+  },
+  achievementName: { 
+    fontSize: 26, 
+    fontWeight: '900', 
+    color: '#111', 
+    marginBottom: 12, 
+    textAlign: 'center' 
+  },
+  achievementDesc: { 
+    fontSize: 16, 
+    color: '#666', 
+    textAlign: 'center', 
+    marginBottom: 28, 
+    fontWeight: '600', 
+    lineHeight: 22 
+  },
+  claimButton: {
+    backgroundColor: '#111',
+    paddingVertical: 18,
+    paddingHorizontal: 24,
+    borderRadius: 18,
+    width: '100%',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+  },
+  claimButtonText: { 
+    color: '#FFF', 
+    fontWeight: '900', 
+    fontSize: 16 
+  },
 });

@@ -7,7 +7,8 @@ import { supabase } from './src/services/supabase';
 // 📱 Screen Imports
 import HomeScreen from './src/screens/HomeScreen';
 import AuthScreen from './src/screens/AuthScreen';
-import ProfileScreen from './src/screens/ProfileScreen'; // 👈 New screen
+import ProfileScreen from './src/screens/ProfileScreen';
+import ShopScreen from './src/screens/ShopScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -35,6 +36,7 @@ export default function App() {
           <>
             <Stack.Screen name="Home" component={HomeScreen} />
             <Stack.Screen name="Profile" component={ProfileScreen} />
+            <Stack.Screen name="Shop" component={ShopScreen} />
           </>
         ) : (
           // 🔐 No player found. Send them to the Login/Register screen.
