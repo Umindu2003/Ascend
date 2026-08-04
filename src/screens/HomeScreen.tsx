@@ -5,66 +5,195 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../services/supabase';
 import MissionCard from '../components/MissionCard';
 import AddMissionModal from '../components/AddMissionModal';
+import { useNavigation } from '@react-navigation/native';
+import * as Haptics from 'expo-haptics';
 
 export default function HomeScreen() {
-  // 🎯 Missions State – now empty, filled by Supabase
+  const navigation = useNavigation<any>();
+
+  // 🎯 Missions State
   const [missions, setMissions] = useState<any[]>([]);
-  // 📝 Modal State
+  // 📊 Player Stats State
+  const [playerStats, setPlayerStats] = useState({
+    level: 1,
+    xp: 0,
+    combo: 0,
+    id: '',
+  });
   const [isModalVisible, setModalVisible] = useState(false);
 
-  // 🔄 Load missions when screen opens
+  // 🔄 Load everything when screen opens
   useEffect(() => {
-    fetchMissions();
+    loadPlayerData();
   }, []);
 
-  const fetchMissions = async () => {
-    const { data, error } = await supabase
+  // 📥 Load player stats + missions
+  const loadPlayerData = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // 1. Load Player Stats 📊
+    const { data: statsData } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    if (statsData) {
+      setPlayerStats({
+        level: statsData.level,
+        xp: statsData.xp,
+        combo: statsData.combo,
+        id: user.id,
+      });
+    }
+
+    // 2. Load Missions 🎯
+    const { data: missionsData } = await supabase
       .from('missions')
       .select('*')
-      .order('id', { ascending: false }); // newest first
+      .eq('user_id', user.id)
+      .order('id', { ascending: false });
 
-    if (error) {
-      console.error('Supabase Fetch Error:', error);
-    } else if (data) {
-      // Map DB columns to component props
-      const formattedMissions = data.map((m) => ({
-        id: m.id,
-        title: m.title,
-        xp: m.xp_reward,
-        isCompleted: m.is_completed,
-      }));
-      setMissions(formattedMissions);
+    if (missionsData) {
+      setMissions(
+        missionsData.map((m) => ({
+          id: m.id,
+          title: m.title,
+          xp: m.xp_reward,
+          isCompleted: m.is_completed,
+        }))
+      );
     }
+  };
+
+  // ⚡ Toggle Mission with Level-Up Logic
+  const toggleMission = async (
+    missionId: number,
+    currentStatus: boolean,
+    missionXp: number
+  ) => {
+    const isCompleting = !currentStatus;
+
+    // 1. Instantly update UI ⚡
+    setMissions(
+      missions.map((m) =>
+        m.id === missionId ? { ...m, isCompleted: isCompleting } : m
+      )
+    );
+
+    // 2. Calculate new XP and Levels 🧮
+    let newXp = isCompleting
+      ? playerStats.xp + missionXp
+      : playerStats.xp - missionXp;
+    let newLevel = playerStats.level;
+
+    // 🏆 LEVEL UP LOGIC!
+    if (newXp >= 1000) {
+      newLevel += 1;
+      newXp -= 1000; // carry over extra XP
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert('LEVEL UP! 🎉⚡', `You are now Level ${newLevel}! Keep grinding, bro!`);
+    } else if (newXp < 0 && newLevel > 1) {
+      // unchecking a mission can drop a level
+      newLevel -= 1;
+      newXp += 1000;
+    } else if (newXp < 0) {
+      newXp = 0; // floor at 0 when level 1
+    }
+
+    // Update local player stats
+    setPlayerStats({ ...playerStats, xp: newXp, level: newLevel });
+
+    // 3. Save to Supabase in the background ☁️
+    await supabase
+      .from('missions')
+      .update({ is_completed: isCompleting })
+      .eq('id', missionId);
+
+    await supabase
+      .from('users')
+      .update({ xp: newXp, level: newLevel })
+      .eq('id', playerStats.id);
+  };
+
+  // 🗑️ Delete Mission Function (NEW!)
+  const deleteMission = (missionId: number, missionTitle: string) => {
+    Alert.alert(
+      "Scrap Mission? 🗑️",
+      `Are you sure you want to delete "${missionTitle}"?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Delete", 
+          style: "destructive", 
+          onPress: async () => {
+            // 1. Remove it from the UI instantly ⚡
+            setMissions(missions.filter(m => m.id !== missionId));
+            
+            // 2. Delete it from the cloud ☁️
+            const { error } = await supabase
+              .from('missions')
+              .delete()
+              .eq('id', missionId);
+              
+            if (error) {
+              console.error("Delete Error:", error);
+              Alert.alert("Error", "Could not delete mission from database.");
+              loadPlayerData(); // Reload if there's an error to keep UI in sync
+            }
+          }
+        }
+      ]
+    );
   };
 
   return (
     <SafeAreaView style={styles.container}>
       {/* 🏆 Player Stats Header */}
       <View style={styles.statsContainer}>
-        <View style={styles.levelBadge}>
-          <Text style={styles.levelText}>LEVEL 7 ⚡</Text>
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <View style={styles.levelBadge}>
+            <Text style={styles.levelText}>LEVEL {playerStats.level} ⚡</Text>
+          </View>
+          <View style={styles.comboBadge}>
+            <Text style={styles.comboText}>🔥 {playerStats.combo} Days</Text>
+          </View>
         </View>
 
-        <View style={styles.comboBadge}>
-          <Text style={styles.comboText}>🔥 17 Days</Text>
-        </View>
+        {/* 👤 Profile Button */}
+        <TouchableOpacity
+          style={styles.profileButton}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            navigation.navigate('Profile');
+          }}
+        >
+          <Ionicons name="person" size={18} color="#111" />
+        </TouchableOpacity>
       </View>
 
-      {/* 🟢 XP Progress */}
+      {/* 🟢 XP Progress Bar – dynamic width! */}
       <View style={styles.xpContainer}>
         <Text style={styles.xpLabel}>XP</Text>
-
         <View style={styles.xpTrack}>
-          <View style={styles.xpFill} />
+          <View
+            style={[
+              styles.xpFill,
+              { width: `${(playerStats.xp / 1000) * 100}%` },
+            ]}
+          />
         </View>
-
-        <Text style={styles.xpNumbers}>820 / 1000</Text>
+        <Text style={styles.xpNumbers}>
+          {playerStats.xp} / 1000
+        </Text>
       </View>
 
       {/* 🎯 Mission Board */}
@@ -81,15 +210,10 @@ export default function HomeScreen() {
               title={mission.title}
               xp={mission.xp}
               isCompleted={mission.isCompleted}
-              onComplete={() => {
-                setMissions((prevMissions) =>
-                  prevMissions.map((m) =>
-                    m.id === mission.id
-                      ? { ...m, isCompleted: !m.isCompleted }
-                      : m
-                  )
-                );
-              }}
+              onComplete={() =>
+                toggleMission(mission.id, mission.isCompleted, mission.xp)
+              }
+              onDelete={() => deleteMission(mission.id, mission.title)} // 👈 Connected the delete prop right here!
             />
           ))}
 
@@ -112,21 +236,29 @@ export default function HomeScreen() {
         <Ionicons name="add" size={32} color="#FFF" />
       </TouchableOpacity>
 
-      {/* 📝 Add Mission Modal */}
+      {/* 📝 Add Mission Modal with user_id */}
       <AddMissionModal
         visible={isModalVisible}
         onClose={() => setModalVisible(false)}
         onAdd={async (title, xp) => {
-          // 1. Insert into Supabase
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) return;
+
           const { data, error } = await supabase
             .from('missions')
-            .insert([{ title, xp_reward: xp, is_completed: false }])
+            .insert([
+              {
+                title: title,
+                xp_reward: xp,
+                is_completed: false,
+                user_id: user.id,
+              },
+            ])
             .select();
 
           if (error) {
             console.error('Supabase Insert Error:', error);
           } else if (data) {
-            // 2. Format the returned row and add to the top of the list
             const newMission = {
               id: data[0].id,
               title: data[0].title,
@@ -151,6 +283,7 @@ const styles = StyleSheet.create({
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginTop: 20,
   },
 
@@ -185,6 +318,20 @@ const styles = StyleSheet.create({
     color: '#FF7F50',
   },
 
+  profileButton: {
+    backgroundColor: '#FFF',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
+    elevation: 2,
+  },
+
   xpContainer: {
     marginTop: 32,
   },
@@ -204,7 +351,6 @@ const styles = StyleSheet.create({
   },
 
   xpFill: {
-    width: '82%',
     height: '100%',
     backgroundColor: '#34C759',
     borderRadius: 12,
@@ -241,7 +387,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // 🟢 Floating Action Button
   fab: {
     position: 'absolute',
     bottom: 30,
@@ -252,7 +397,6 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     justifyContent: 'center',
     alignItems: 'center',
-
     shadowColor: '#000',
     shadowOffset: {
       width: 0,

@@ -1,39 +1,47 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons'; // Expo comes with this built-in! 🔥
+import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
+// 1. 📝 Define the props
 interface MissionCardProps {
   title: string;
   xp: number;
   isCompleted: boolean;
   onComplete: () => void;
+  onDelete: () => void; // 👈 new delete prop
 }
 
-export default function MissionCard({ title, xp, isCompleted, onComplete }: MissionCardProps) {
+// 2. 🔗 Attach them to the component
+export default function MissionCard({
+  title,
+  xp,
+  isCompleted,
+  onComplete,
+  onDelete,
+}: MissionCardProps) {
   return (
-    <TouchableOpacity 
-      style={[styles.card, isCompleted && styles.cardCompleted]} 
+    <TouchableOpacity
+      style={[styles.card, isCompleted && styles.cardCompleted]}
       activeOpacity={0.8}
       onPress={() => {
-        // Trigger a sweet, light physical buzz! 🐝
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         onComplete();
       }}
+      onLongPress={() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        onDelete();
+      }}
     >
       <View style={styles.leftContent}>
-        {/* Custom Checkbox */}
         <View style={[styles.checkbox, isCompleted && styles.checkboxCompleted]}>
           {isCompleted && <Ionicons name="checkmark" size={16} color="#FFF" />}
         </View>
-        
-        {/* Mission Title */}
         <Text style={[styles.title, isCompleted && styles.titleCompleted]}>
           {title}
         </Text>
       </View>
-      
-      {/* XP Reward Badge */}
+
       <View style={styles.xpBadge}>
         <Text style={styles.xpText}>+{xp} XP</Text>
       </View>
@@ -50,15 +58,14 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 20,
     marginBottom: 12,
-    // Soft glassmorphism/clean shadow ☁️
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
     shadowRadius: 8,
-    elevation: 1, 
+    elevation: 1,
   },
   cardCompleted: {
-    opacity: 0.6, // Dims the card slightly when cleared!
+    opacity: 0.6,
   },
   leftContent: {
     flexDirection: 'row',
@@ -76,7 +83,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FAFAFA',
   },
   checkboxCompleted: {
-    backgroundColor: '#34C759', // Apple Green 🍏
+    backgroundColor: '#34C759',
     borderColor: '#34C759',
   },
   title: {
@@ -95,7 +102,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   xpText: {
-    color: '#007AFF', // iOS Blue 💧
+    color: '#007AFF',
     fontWeight: '800',
     fontSize: 14,
   },
