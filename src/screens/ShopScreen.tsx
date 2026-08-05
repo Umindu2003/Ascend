@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../services/supabase';
 import { useNavigation } from '@react-navigation/native';
+import { COLORS, RADIUS, SHADOWS } from '../constants/theme';
+import AnimatedButton from '../components/AnimatedButton';
+import BottomTabNavigator, { TabName } from '../navigation/BottomTabNavigator';
 import * as Haptics from 'expo-haptics';
 
 const SHOP_ITEMS = [
@@ -33,6 +36,7 @@ const SHOP_ITEMS = [
 export default function ShopScreen() {
   const navigation = useNavigation<any>();
   const [wallet, setWallet] = useState({ coins: 0, gems: 0, health: 100, id: '' });
+  const [activeTab, setActiveTab] = useState<TabName>('Shop');
 
   useEffect(() => {
     fetchWallet();
@@ -65,11 +69,10 @@ export default function ShopScreen() {
 
     if (currentBalance < item.cost) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      Alert.alert('Bro is broke! 💀', `You need ${item.cost - currentBalance} more ${item.currency} to buy this!`);
+      Alert.alert('Insufficient Balance 💀', `You need ${item.cost - currentBalance} more ${item.currency} to buy this!`);
       return;
     }
 
-    // Process the purchase mathematically
     let newCoins = wallet.coins;
     let newGems = wallet.gems;
     let newHealth = wallet.health;
@@ -80,12 +83,10 @@ export default function ShopScreen() {
       newGems -= item.cost;
     }
 
-    // Special item effect: Health Potion heals you!
     if (item.id === 'health_potion') {
       newHealth = Math.min(100, newHealth + 50);
     }
 
-    // Save to Supabase ☁️
     const { error } = await supabase
       .from('users')
       .update({ coins: newCoins, gems: newGems, health: newHealth })
@@ -96,63 +97,72 @@ export default function ShopScreen() {
       return;
     }
 
-    // Update local state
     setWallet({ ...wallet, coins: newCoins, gems: newGems, health: newHealth });
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Alert.alert('PURCHASE SUCCESSFUL! 🎉', `You acquired the ${item.name}!`);
+    Alert.alert('PURCHASE SUCCESSFUL! 🎉', `You acquired ${item.name}!`);
+  };
+
+  const handleTabPress = (tab: TabName) => {
+    setActiveTab(tab);
+    if (tab === 'Home') navigation.navigate('Home');
+    if (tab === 'Profile') navigation.navigate('Profile');
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* 🔙 Back Button & Title */}
-      <View style={styles.headerRow}>
-        <TouchableOpacity 
-          style={styles.backButton} 
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#111" />
-        </TouchableOpacity>
-        <Text style={styles.title}>Ascend Shop 🛒</Text>
-      </View>
-
-      {/* 💰 Wallet Card (Glassmorphism vibes) */}
-      <View style={styles.walletCard}>
-        <View style={styles.walletItem}>
-          <Text style={styles.walletEmoji}>🪙</Text>
-          <Text style={styles.walletValue}>{wallet.coins}</Text>
-          <Text style={styles.walletLabel}>Coins</Text>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+        {/* Navigation Header */}
+        <View style={styles.headerRow}>
+          <AnimatedButton
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="arrow-back" size={20} color={COLORS.textPrimary} />
+          </AnimatedButton>
+          <Text style={styles.headerTitle}>Ascend Shop 🛒</Text>
+          <View style={{ width: 40 }} />
         </View>
-        <View style={styles.divider} />
-        <View style={styles.walletItem}>
-          <Text style={styles.walletEmoji}>💎</Text>
-          <Text style={styles.walletValue}>{wallet.gems}</Text>
-          <Text style={styles.walletLabel}>Gems</Text>
-        </View>
-      </View>
 
-      {/* 🛍️ Shop Items List */}
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+        {/* Wallet Balance Card */}
+        <View style={styles.walletCard}>
+          <View style={styles.walletItem}>
+            <Text style={styles.walletEmoji}>🪙</Text>
+            <Text style={styles.walletValue}>{wallet.coins}</Text>
+            <Text style={styles.walletLabel}>Coins</Text>
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.walletItem}>
+            <Text style={styles.walletEmoji}>💎</Text>
+            <Text style={styles.walletValue}>{wallet.gems}</Text>
+            <Text style={styles.walletLabel}>Gems</Text>
+          </View>
+        </View>
+
+        {/* Shop Items Section */}
         <Text style={styles.sectionTitle}>Available Loot ✨</Text>
 
         {SHOP_ITEMS.map((item) => (
           <View key={item.id} style={styles.itemCard}>
-            <View style={{ flex: 1 }}>
+            <View style={styles.itemInfo}>
               <Text style={styles.itemName}>{item.name}</Text>
               <Text style={styles.itemDesc}>{item.desc}</Text>
             </View>
 
-            <TouchableOpacity 
+            <AnimatedButton 
               style={styles.buyButton}
               onPress={() => buyItem(item)}
             >
               <Text style={styles.buyButtonText}>
                 {item.cost} {item.currency === 'coins' ? '🪙' : '💎'}
               </Text>
-            </TouchableOpacity>
+            </AnimatedButton>
           </View>
         ))}
       </ScrollView>
+
+      {/* Floating Bottom Nav */}
+      <BottomTabNavigator activeTab={activeTab} onTabPress={handleTabPress} />
     </SafeAreaView>
   );
 }
@@ -160,105 +170,112 @@ export default function ShopScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: COLORS.background,
+  },
+  scrollContent: {
     paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 110,
   },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 10,
+    justifyContent: 'space-between',
     marginBottom: 24,
-    gap: 16,
   },
   backButton: {
-    padding: 8,
-    backgroundColor: '#FFF',
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
-    elevation: 2,
+    backgroundColor: COLORS.card,
+    width: 40,
+    height: 40,
+    borderRadius: RADIUS.full,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.small,
   },
-  title: {
-    fontSize: 28,
+  headerTitle: {
+    fontSize: 22,
     fontWeight: '900',
-    color: '#111',
+    color: COLORS.textPrimary,
   },
   walletCard: {
-    backgroundColor: '#FFF',
-    borderRadius: 24,
-    padding: 20,
+    backgroundColor: COLORS.card,
+    borderRadius: RADIUS.card,
+    padding: 24,
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
     marginBottom: 32,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 10,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.card,
   },
   walletItem: {
     alignItems: 'center',
   },
   walletEmoji: {
-    fontSize: 24,
+    fontSize: 28,
     marginBottom: 4,
   },
   walletValue: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '900',
-    color: '#111',
+    color: COLORS.textPrimary,
   },
   walletLabel: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#888',
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+    marginTop: 2,
   },
   divider: {
     width: 1,
-    height: 40,
-    backgroundColor: '#EBEBEB',
+    height: 44,
+    backgroundColor: COLORS.border,
   },
   sectionTitle: {
     fontSize: 22,
     fontWeight: '900',
-    color: '#111',
+    color: COLORS.textPrimary,
     marginBottom: 16,
   },
   itemCard: {
-    backgroundColor: '#FFF',
-    borderRadius: 20,
+    backgroundColor: COLORS.card,
+    borderRadius: RADIUS.card,
     padding: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 8,
-    elevation: 2,
+    justifyContent: 'space-between',
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.small,
+  },
+  itemInfo: {
+    flex: 1,
+    marginRight: 12,
   },
   itemName: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#111',
+    color: COLORS.textPrimary,
     marginBottom: 4,
   },
   itemDesc: {
     fontSize: 13,
-    color: '#666',
+    color: COLORS.textSecondary,
     fontWeight: '500',
   },
   buyButton: {
-    backgroundColor: '#111',
+    backgroundColor: COLORS.primary,
     paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 14,
+    paddingHorizontal: 18,
+    borderRadius: RADIUS.md,
+    ...SHADOWS.button,
   },
   buyButtonText: {
-    color: '#FFF',
+    color: COLORS.textLight,
     fontWeight: '900',
     fontSize: 14,
   },
