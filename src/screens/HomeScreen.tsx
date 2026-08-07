@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   Modal,
-  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,6 +25,7 @@ export default function HomeScreen() {
 
   // ⏳ Loading State
   const [isMathLoading, setIsMathLoading] = useState(true);
+  const [username, setUsername] = useState('Player 1');
 
   // 🎯 Missions State
   const [missions, setMissions] = useState<any[]>([]);
@@ -85,6 +85,8 @@ export default function HomeScreen() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+
+      setUsername(user.user_metadata?.username || 'Player 1');
 
       // 1. Load Player Stats
       const { data: statsData, error: statsError } = await supabase
@@ -379,11 +381,11 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* 1. Top Greeting */}
+        {/* 1. Top Greeting with Username */}
         <View style={styles.headerRow}>
           <View>
             <Text style={styles.greetingText}>{getGreeting()}</Text>
-            <Text style={styles.headerTitle}>Ascend</Text>
+            <Text style={styles.headerTitle}>{username}</Text>
           </View>
 
           <AnimatedButton
@@ -533,7 +535,7 @@ export default function HomeScreen() {
         onClose={() => setShowRewardModal(false)}
       />
 
-      {/* Damage Alert Modal */}
+      {/* 🍏 Damage Alert Modal – updated with wrapper & chunky styles */}
       <Modal visible={showDamageModal} transparent={true} animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.damageCard}>
@@ -542,12 +544,17 @@ export default function HomeScreen() {
             <Text style={styles.damageText}>
               You missed a day and took <Text style={styles.redText}>{damageTaken} damage</Text>.
             </Text>
-            <AnimatedButton
-              style={styles.reviveButton}
-              onPress={() => setShowDamageModal(false)}
-            >
-              <Text style={styles.buttonText}>Keep Fighting ⚔️</Text>
-            </AnimatedButton>
+            
+            {/* 🚀 Wrapper ensures the flexbox respects the width */}
+            <View style={styles.reviveButtonWrapper}>
+              <AnimatedButton
+                style={styles.reviveButton}
+                onPress={() => setShowDamageModal(false)}
+                scaleTo={0.95}
+              >
+                <Text style={styles.buttonText}>Keep Fighting ⚔️</Text>
+              </AnimatedButton>
+            </View>
           </View>
         </View>
       </Modal>
@@ -581,10 +588,11 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
   headerTitle: {
-    fontSize: 30,
+    fontSize: 28,
     fontWeight: '900',
     color: COLORS.textPrimary,
     letterSpacing: -0.5,
+    marginTop: 2,
   },
   profileButton: {
     backgroundColor: COLORS.card,
@@ -747,6 +755,8 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     textAlign: 'center',
   },
+
+  // ---- Damage Modal Styles (updated) ----
   modalOverlay: {
     flex: 1,
     backgroundColor: COLORS.overlay,
@@ -768,12 +778,31 @@ const styles = StyleSheet.create({
   damageTitle: { fontSize: 22, fontWeight: '900', marginBottom: 8, color: COLORS.textPrimary },
   damageText: { fontSize: 15, color: COLORS.textSecondary, textAlign: 'center', marginBottom: 24, fontWeight: '500' },
   redText: { color: COLORS.danger, fontWeight: '800' },
-  reviveButton: {
-    backgroundColor: COLORS.primary,
-    paddingVertical: 16,
-    borderRadius: RADIUS.md,
+
+  // New wrapper & button styles (chunky Apple aesthetic)
+  reviveButtonWrapper: {
     width: '100%',
+    marginTop: 20,
     alignItems: 'center',
   },
-  buttonText: { color: COLORS.textLight, fontWeight: '800', fontSize: 16 },
+  reviveButton: {
+    backgroundColor: '#111111', // or COLORS.primary
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 16, // use RADIUS variable if you prefer
+    width: '85%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 5,
+    elevation: 4,
+  },
+  buttonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
 });

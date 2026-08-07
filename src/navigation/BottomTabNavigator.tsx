@@ -5,7 +5,7 @@ import { COLORS, RADIUS, SHADOWS } from '../constants/theme';
 import AnimatedButton from '../components/AnimatedButton';
 import * as Haptics from 'expo-haptics';
 
-export type TabName = 'Home' | 'Missions' | 'Shop' | 'Profile';
+export type TabName = 'Home' | 'Shop' | 'Profile';
 
 interface BottomTabNavigatorProps {
   activeTab: TabName;
@@ -14,7 +14,6 @@ interface BottomTabNavigatorProps {
 
 const TABS: { name: TabName; icon: keyof typeof Ionicons.glyphMap; activeIcon: keyof typeof Ionicons.glyphMap }[] = [
   { name: 'Home', icon: 'home-outline', activeIcon: 'home' },
-  { name: 'Missions', icon: 'checkbox-outline', activeIcon: 'checkbox' },
   { name: 'Shop', icon: 'cart-outline', activeIcon: 'cart' },
   { name: 'Profile', icon: 'person-outline', activeIcon: 'person' },
 ];
@@ -63,18 +62,18 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.card,
     borderRadius: RADIUS.full,
     paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingHorizontal: 24,
     justifyContent: 'space-around',
     alignItems: 'center',
     width: '100%',
-    maxWidth: 360,
+    maxWidth: 320,
     borderWidth: 1,
     borderColor: COLORS.border,
     ...SHADOWS.card,
   },
   tabButton: {
     paddingVertical: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     borderRadius: RADIUS.full,
     alignItems: 'center',
     justifyContent: 'center',

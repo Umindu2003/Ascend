@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, RADIUS, SHADOWS } from '../constants/theme';
@@ -15,11 +16,13 @@ import AnimatedButton from './AnimatedButton';
 import * as Haptics from 'expo-haptics';
 
 const STAT_CATEGORIES = [
-  { id: 'INT', label: '🧠 INT' },
-  { id: 'STR', label: '💪 STR' },
-  { id: 'CHA', label: '🗣️ CHA' },
-  { id: 'END', label: '⚡ END' },
+  { id: 'INT', label: '🧠 INT', color: '#3B82F6', bg: '#EFF6FF' },
+  { id: 'STR', label: '💪 STR', color: '#EF4444', bg: '#FEF2F2' },
+  { id: 'CHA', label: '🗣️ CHA', color: '#F59E0B', bg: '#FFFBEB' },
+  { id: 'END', label: '⚡ END', color: '#22C55E', bg: '#F0FDF4' },
 ];
+
+const XP_PRESETS = [25, 50, 100, 150];
 
 interface AddMissionModalProps {
   visible: boolean;
@@ -64,64 +67,110 @@ export default function AddMissionModal({ visible, onClose, onAdd }: AddMissionM
                 onClose();
               }}
             >
-              <Ionicons name="close-circle" size={28} color={COLORS.textMuted} />
+              <Ionicons name="close-circle" size={30} color={COLORS.textPrimary} />
             </AnimatedButton>
           </View>
 
-          <Text style={styles.label}>Mission Title</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. Code for 30 minutes"
-            placeholderTextColor={COLORS.textMuted}
-            value={title}
-            onChangeText={setTitle}
-            autoFocus
-          />
-
-          <View style={styles.row}>
-            <Text style={styles.label}>XP Reward:</Text>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.scrollInside}
+          >
+            {/* Mission Title Input */}
+            <Text style={styles.sectionHeaderLabel}>MISSION TITLE</Text>
             <TextInput
-              style={styles.xpInput}
-              keyboardType="number-pad"
-              value={xp}
-              onChangeText={setXp}
+              style={styles.input}
+              placeholder="e.g. Code for 30 minutes"
+              placeholderTextColor={COLORS.textMuted}
+              value={title}
+              onChangeText={setTitle}
             />
-          </View>
 
-          {/* Stat Category Selector */}
-          <Text style={styles.label}>Stat Category:</Text>
-          <View style={styles.statContainer}>
-            {STAT_CATEGORIES.map((stat) => {
-              const isActive = selectedStat === stat.id;
-              return (
-                <AnimatedButton
-                  key={stat.id}
-                  style={[
-                    styles.statButton,
-                    isActive && styles.statButtonActive,
-                  ]}
-                  onPress={() => {
-                    Haptics.selectionAsync();
-                    setSelectedStat(stat.id);
-                  }}
-                  scaleTo={0.94}
-                >
-                  <Text
-                    style={[
-                      styles.statText,
-                      isActive && styles.statTextActive,
-                    ]}
-                  >
-                    {stat.label}
-                  </Text>
-                </AnimatedButton>
-              );
-            })}
-          </View>
+            {/* XP Reward Row */}
+            <View style={styles.xpHeaderRow}>
+              <Text style={styles.sectionHeaderLabel}>XP REWARD</Text>
+              <View style={styles.xpInputWrapper}>
+                <Text style={styles.xpInputPrefix}>⚡</Text>
+                <TextInput
+                  style={styles.xpInput}
+                  keyboardType="number-pad"
+                  value={xp}
+                  onChangeText={setXp}
+                />
+                <Text style={styles.xpInputSuffix}>XP</Text>
+              </View>
+            </View>
 
-          <AnimatedButton style={styles.addButton} onPress={handleAdd}>
-            <Text style={styles.addButtonText}>Create Mission ✨</Text>
-          </AnimatedButton>
+            {/* XP Quick Preset Buttons - BULLETPROOF GRID */}
+            <Text style={styles.subLabel}>Quick Select XP:</Text>
+            <View style={styles.gridContainer}>
+              {XP_PRESETS.map((val) => {
+                const isActive = parseInt(xp) === val;
+                return (
+                  <View key={val} style={styles.gridWrapper}>
+                    <AnimatedButton
+                      style={[
+                        styles.presetPill,
+                        isActive && styles.presetPillActive,
+                      ]}
+                      onPress={() => {
+                        Haptics.selectionAsync();
+                        setXp(val.toString());
+                      }}
+                      scaleTo={0.92}
+                    >
+                      <Text
+                        style={[
+                          styles.presetText,
+                          isActive && styles.presetTextActive,
+                        ]}
+                      >
+                        +{val} XP
+                      </Text>
+                    </AnimatedButton>
+                  </View>
+                );
+              })}
+            </View>
+
+            {/* Stat Category Selector - BULLETPROOF GRID */}
+            <Text style={styles.sectionHeaderLabel}>STAT CATEGORY</Text>
+            <View style={styles.gridContainer}>
+              {STAT_CATEGORIES.map((stat) => {
+                const isActive = selectedStat === stat.id;
+                return (
+                  <View key={stat.id} style={styles.gridWrapper}>
+                    <AnimatedButton
+                      style={[
+                        styles.statCard,
+                        { backgroundColor: stat.bg, borderColor: stat.color },
+                        isActive && [styles.statCardActive, { backgroundColor: stat.color }],
+                      ]}
+                      onPress={() => {
+                        Haptics.selectionAsync();
+                        setSelectedStat(stat.id);
+                      }}
+                      scaleTo={0.94}
+                    >
+                      <Text
+                        style={[
+                          styles.statCardText,
+                          { color: stat.color },
+                          isActive && styles.statCardTextActive,
+                        ]}
+                      >
+                        {stat.label}
+                      </Text>
+                    </AnimatedButton>
+                  </View>
+                );
+              })}
+            </View>
+
+            <AnimatedButton style={styles.addButton} onPress={handleAdd}>
+              <Text style={styles.addButtonText}>Create Mission ✨</Text>
+            </AnimatedButton>
+          </ScrollView>
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -142,107 +191,163 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: RADIUS.modal,
     borderTopRightRadius: RADIUS.modal,
     paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 40,
+    paddingTop: 14,
+    paddingBottom: 32,
+    maxHeight: '85%',
     ...SHADOWS.modal,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: COLORS.border,
   },
   grabBar: {
-    width: 40,
+    width: 44,
     height: 5,
     borderRadius: 3,
-    backgroundColor: COLORS.border,
+    backgroundColor: COLORS.borderDark,
     alignSelf: 'center',
     marginBottom: 16,
+    opacity: 0.3,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   title: {
     fontSize: 22,
     fontWeight: '900',
     color: COLORS.textPrimary,
   },
-  label: {
-    fontSize: 14,
+  scrollInside: {
+    paddingBottom: 20,
+  },
+  sectionHeaderLabel: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: COLORS.textPrimary,
+    letterSpacing: 1,
+    marginBottom: 8,
+    marginTop: 6,
+  },
+  subLabel: {
+    fontSize: 12,
     fontWeight: '700',
     color: COLORS.textSecondary,
     marginBottom: 8,
   },
   input: {
-    backgroundColor: COLORS.background,
+    backgroundColor: '#F3F4F6',
     borderRadius: RADIUS.md,
     padding: 16,
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: COLORS.textPrimary,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 20,
+    borderWidth: 1.5,
+    borderColor: '#D1D5DB',
+    marginBottom: 18,
   },
-  row: {
+  xpHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 8,
+  },
+  xpInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF9E7',
+    borderRadius: RADIUS.md,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderWidth: 1.5,
+    borderColor: '#F5C542',
+  },
+  xpInputPrefix: {
+    fontSize: 16,
+    marginRight: 6,
   },
   xpInput: {
-    backgroundColor: COLORS.xpBackground,
-    borderRadius: RADIUS.sm,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 18,
+    fontWeight: '900',
     color: COLORS.textPrimary,
-    borderWidth: 1,
-    borderColor: 'rgba(245, 197, 66, 0.4)',
+    width: 50,
     textAlign: 'center',
-    minWidth: 80,
   },
-  statContainer: {
+  xpInputSuffix: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: COLORS.textPrimary,
+    marginLeft: 4,
+  },
+  
+  // NEW LAYOUT STYLES FOR PERFECT 2x2 GRID
+  gridContainer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginBottom: 32,
+    width: '100%',
+    marginBottom: 12,
   },
-  statButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: RADIUS.sm,
-    backgroundColor: COLORS.background,
+  gridWrapper: {
+    width: '48%', // The View forces the 48% width safely!
+    marginBottom: 12,
+  },
+  
+  presetPill: {
+    width: '100%', // Fills the gridWrapper
+    paddingVertical: 14,
+    borderRadius: RADIUS.md,
+    backgroundColor: '#F3F4F6',
     borderWidth: 1.5,
-    borderColor: COLORS.border,
-    flex: 1,
-    marginHorizontal: 3,
+    borderColor: '#D1D5DB',
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  statButtonActive: {
-    backgroundColor: COLORS.card,
-    borderColor: COLORS.primary,
+  presetPillActive: {
+    backgroundColor: '#F5C542',
+    borderColor: '#111111',
     ...SHADOWS.small,
   },
-  statText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.textSecondary,
+  presetText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: COLORS.textPrimary,
   },
-  statTextActive: {
-    color: COLORS.primary,
+  presetTextActive: {
+    color: '#111111',
     fontWeight: '900',
+  },
+  statCard: {
+    width: '100%', // Fills the gridWrapper
+    paddingVertical: 14,
+    borderRadius: RADIUS.md,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statCardActive: {
+    borderColor: '#111111',
+    ...SHADOWS.small,
+  },
+  statCardText: {
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  statCardTextActive: {
+    color: '#FFFFFF',
   },
   addButton: {
     backgroundColor: COLORS.primary,
     borderRadius: RADIUS.md,
-    padding: 18,
+    paddingVertical: 18,
     alignItems: 'center',
+    marginTop: 8,
+    width: '100%', // Just to be extra safe here too!
     ...SHADOWS.button,
   },
   addButtonText: {
     color: COLORS.textLight,
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '900',
   },
 });
